@@ -1,0 +1,30 @@
+{
+  "key_vault": {
+    "scope": "finbank-kv-scope",
+    "keys": {
+      "host":     "finbank-sql-host",
+      "port":     "finbank-sql-port",
+      "db":       "finbank-sql-db",
+      "user":     "finbank-sql-user",
+      "password": "finbank-sql-password"
+    }
+  },
+  "data_config": {
+    "TB_CLIENTES_CORE":   10000,
+    "TB_PRODUCTOS_CAT":      50,
+    "TB_MOV_FINANCIEROS": 500000,
+    "TB_OBLIGACIONES":     30000,
+    "TB_SUCURSALES_RED":     200,
+    "TB_COMISIONES_LOG":   80000,
+    "historico_meses":        12,
+    "paises":   ["Colombia", "Mexico", "Peru", "Chile", "Argentina"],
+    "null_rate":            0.05,
+    "random_seed":            42,
+    "schema":              "dbo",
+    "anomalias": {
+      "duplicados_mov":        500,
+      "fechas_fuera_rango":    200,
+      "montos_inconsistentes": 150
+    }
+  }
+}

@@ -21,24 +21,20 @@ import pandas as pd
 from faker import Faker
 # from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+import json
 
-# ---------------------------------------------------------------------------
-# CREDENCIALES — Databricks Secret Scope nativo
-# Crear el scope y los secretos con:
-#   databricks secrets create-scope --scope finbank-scope
-#   databricks secrets put-secret --scope finbank-scope --key sql-host
-#   databricks secrets put-secret --scope finbank-scope --key sql-port
-#   databricks secrets put-secret --scope finbank-scope --key sql-db
-#   databricks secrets put-secret --scope finbank-scope --key sql-user
-#   databricks secrets put-secret --scope finbank-scope --key sql-password
-# ---------------------------------------------------------------------------
-SECRET_SCOPE = "finbank-scope"
+with open("config/config.json") as f:
+    cfg = json.load(f)
 
-host     = 
-port     = 
-db       = 
-user     = 
-password = 
+creds       = cfg["credentials"]
+DATA_CONFIG = cfg["data_config"]
+
+# JDBC
+host     = creds["host"]
+port     = creds["port"]
+db       = creds["db"]
+user     = creds["user"]
+password = creds["password"]
 
 JDBC_URL = (
     f"jdbc:sqlserver://{host}:{port};"
@@ -52,28 +48,43 @@ JDBC_PROPS = {
     "driver":   "com.microsoft.sqlserver.jdbc.SQLServerDriver",
 }
 
-# ---------------------------------------------------------------------------
-# PARÁMETROS DE GENERACIÓN
-# ---------------------------------------------------------------------------
-DATA_CONFIG = {
-    "TB_CLIENTES_CORE":    10_000,
-    "TB_PRODUCTOS_CAT":        50,
-    "TB_MOV_FINANCIEROS":  500_000,
-    "TB_OBLIGACIONES":      30_000,
-    "TB_SUCURSALES_RED":       200,
-    "TB_COMISIONES_LOG":    80_000,
-    "historico_meses":         12,
-    "paises": ["Colombia", "Mexico", "Peru", "Chile", "Argentina"],
-    "null_rate":             0.05,
-    "random_seed":             42,
-    "schema":               "dbo",
-    "anomalias": {
-        "duplicados_mov":        500,
-        "fechas_fuera_rango":    200,
-        "montos_inconsistentes": 150,
-    },
+print(f"✅ Config cargada → {host} / {db}")
+
+# COMMAND ----------
+
+CONFIG_PATH = "config/config.json"
+ 
+with open(CONFIG_PATH) as f:
+    cfg = json.load(f)
+ 
+SCOPE       = cfg["key_vault"]["scope"]
+KV_KEYS     = cfg["key_vault"]["keys"]
+DATA_CONFIG = cfg["data_config"]
+ 
+# Leer secretos desde Azure Key Vault (kv-dataknow-dev-eastus)
+host     = dbutils.secrets.get(SCOPE, KV_KEYS["host"])
+port     = dbutils.secrets.get(SCOPE, KV_KEYS["port"])
+db       = dbutils.secrets.get(SCOPE, KV_KEYS["db"])
+user     = dbutils.secrets.get(SCOPE, KV_KEYS["user"])
+password = dbutils.secrets.get(SCOPE, KV_KEYS["password"])
+ 
+JDBC_URL = (
+    f"jdbc:sqlserver://{host}:{port};"
+    f"databaseName={db};"
+    f"encrypt=true;"
+    f"trustServerCertificate=false;"
+)
+JDBC_PROPS = {
+    "user":     user,
+    "password": password,
+    "driver":   "com.microsoft.sqlserver.jdbc.SQLServerDriver",
 }
 
+print(f"✅ Config cargada → {host} / {db}")
+
+# COMMAND ----------
+
+# DBTITLE 1,semilla
 SEED       = DATA_CONFIG["random_seed"]
 NULL_RATE  = DATA_CONFIG["null_rate"]
 PAISES     = DATA_CONFIG["paises"]

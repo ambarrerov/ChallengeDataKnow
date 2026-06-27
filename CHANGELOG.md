@@ -18,3 +18,9 @@
 ### Added
 - agregado notebook bronzetosilver y extraction, falta limpiar lógica
 - inicio de implementación capa gold
+
+## [0.1.3] - 27-06-2026
+
+### Added
+- creacion de dims y facts capa gold.
+- finalizacion fase 1
