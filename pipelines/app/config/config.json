@@ -1,0 +1,12 @@
+{
+  "key_vault": {
+    "scope": "finbank-kv-scope",
+    "keys": {
+      "host":     "finbank-sql-host",
+      "port":     "finbank-sql-port",
+      "db":       "finbank-sql-db",
+      "user":     "finbank-sql-user",
+      "password": "finbank-sql-password"
+    }
+  }
+}

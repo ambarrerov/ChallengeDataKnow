@@ -23,32 +23,6 @@ from faker import Faker
 from pyspark.sql import functions as F
 import json
 
-with open("config/config.json") as f:
-    cfg = json.load(f)
-
-creds       = cfg["credentials"]
-DATA_CONFIG = cfg["data_config"]
-
-# JDBC
-host     = creds["host"]
-port     = creds["port"]
-db       = creds["db"]
-user     = creds["user"]
-password = creds["password"]
-
-JDBC_URL = (
-    f"jdbc:sqlserver://{host}:{port};"
-    f"databaseName={db};"
-    f"encrypt=true;"
-    f"trustServerCertificate=false;"
-)
-JDBC_PROPS = {
-    "user":     user,
-    "password": password,
-    "driver":   "com.microsoft.sqlserver.jdbc.SQLServerDriver",
-}
-
-print(f"✅ Config cargada → {host} / {db}")
 
 # COMMAND ----------
 

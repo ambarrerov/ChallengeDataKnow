@@ -24,3 +24,10 @@
 ### Added
 - creacion de dims y facts capa gold.
 - finalizacion fase 1
+
+## [0.1.4] - 28-06-2026
+
+### Added
+- Agregado documentacion
+- mejora en la estructura del proyecto
+- agregacion de la arquitectura Bicep de la arquitectura implementada.
