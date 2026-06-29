@@ -666,3 +666,16 @@ repositorio
 de volumen
 • CHANGELOG.md con el historial de cambios del proyecto durante el desarrollo de
 la prueba-->
+
+
+Para la fase 5 se definen e implementan al menos tres roles diferenciados: Ingeniero de Datos con permisos de lectura y escritura en todas las capas, Analista con acceso de solo lectura a la capa Gold, y Administrador con control total sobre los recursos del proyecto.
+
+![groups](.imgs/_fase_5/groups.png)
+
+Demostración del acceso denegado
+
+![groups](.imgs/_fase_5/tabla_groups.png)
+
+Catalogo de datos enformato Markdown.
+
+`docs/catalogo_datos.md`

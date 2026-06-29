@@ -31,3 +31,9 @@
 - Agregado documentacion
 - mejora en la estructura del proyecto
 - agregacion de la arquitectura Bicep de la arquitectura implementada.
+
+## [0.1.5] - 29-06-2026
+
+### Added
+- Finalización del proyecto.
+- Fase 4y 5 documentada 
