@@ -181,17 +181,17 @@ El modelo implementado sigue una arquitectura similar a un esquema en estrella, 
 
 Las tablas de dimensiones:
 
-`TB_CLIENTES_CORE`  
-`TB_PRODUCTOS_CAT`  
-`TB_SUCURSALES_RED`  
+* `TB_CLIENTES_CORE`  
+* `TB_PRODUCTOS_CAT`  
+* `TB_SUCURSALES_RED`  
 
 representan la información maestra del negocio, siendo el cliente la entidad central del modelo.
 
 Las tablas de hechos registran los principales eventos operacionales del banco:
 
-`TB_OBLIGACIONES` almacena la cartera de créditos, relacionando clientes y productos.
-`TB_MOV_FINANCIEROS` constituye la tabla de mayor volumen (500.000 registros), registrando cada transacción realizada y relacionándola con el cliente, el producto y la sucursal donde fue originada.
-`TB_COMISIONES_LOG` registra las comisiones generadas por las transacciones financieras, relacionando cada comisión con el cliente y con el movimiento que la originó.
+* `TB_OBLIGACIONES` almacena la cartera de créditos, relacionando clientes y productos.
+* `TB_MOV_FINANCIEROS` constituye la tabla de mayor volumen (500.000 registros), registrando cada transacción realizada y relacionándola con el cliente, el producto y la sucursal donde fue originada.
+* `TB_COMISIONES_LOG` registra las comisiones generadas por las transacciones financieras, relacionando cada comisión con el cliente y con el movimiento que la originó.
 
 nota: para más detalle: data-generation/README.md
 
@@ -366,24 +366,12 @@ Como resultado de esta fase, la información queda organizada en formato Parquet
 
 #### Transformación de datos de Bronze a Silver
 
-`pipelines/app/transformation/bronze_to_silver`
+en el notebook `pipelines/app/transformation/bronze_to_silver` se realiza todo el proceso de transformación.
 
-Una vez extraída la información hacia la capa **Bronze**, se implementó una etapa de transformación encargada de aplicar reglas básicas de calidad de datos, estandarización y protección de información sensible.
+Una vez extraída la información hacia la capa **Bronze**, se implementó una etapa de transformación encargada de aplicar reglas básicas de calidad de datos, estandarización y protección de **información sensible**.
 
 Con el objetivo de favorecer la reutilización del código, todas estas validaciones fueron centralizadas en la función `transformar()`, la cual recibe como entrada un `DataFrame` de Spark y el nombre de la tabla procesada.
 
-##### Enmascaramiento de información sensible
-
-Como parte de las buenas prácticas de seguridad, se implementó una **User Defined Function (UDF)** que utiliza el algoritmo criptográfico **SHA-256** para anonimizar los campos considerados como información personal identificable (PII).
-
-```python
-hash_udf = F.udf(
-    lambda v: hashlib.sha256(str(v).encode()).hexdigest() if v is not None else None,
-    StringType()
-)
-```
-
-El uso de SHA-256 permite conservar la unicidad de los valores sin almacenar la información original, protegiendo datos sensibles como nombres, correos electrónicos o documentos de identidad.
 
 ### Reglas de calidad implementadas
 
@@ -399,9 +387,9 @@ df.dropDuplicates()
 
 Con ello se garantiza que únicamente permanezcan registros únicos dentro del conjunto de datos.
 
-#### 2. Validación de campos obligatorios
+#### 2. Detección de nulos
 
-Posteriormente se identifica cualquier registro que contenga valores nulos en las columnas de la tabla.
+Posteriormente se identifica cualquier registro que contenga valores nulos `null` en las columnas de la tabla.
 
 Los registros que incumplen esta regla no son descartados definitivamente; en cambio, son enviados a un **DataFrame de errores**, incorporando información adicional para facilitar su auditoría:
 
@@ -411,16 +399,11 @@ Los registros que incumplen esta regla no son descartados definitivamente; en ca
 
 Mientras tanto, únicamente los registros conformes continúan el flujo de transformación.
 
-#### 3. Estandarización de formatos
+#### 3. Estandarización de tipos
 
 Con el fin de homogenizar la información proveniente del sistema fuente, se aplican reglas de normalización sobre los datos.
 
-Para las columnas de tipo texto se realizan las siguientes operaciones:
-
-* eliminación de espacios al inicio y al final;
-* conversión de todos los valores a mayúsculas.
-
-Adicionalmente, las columnas cuyo nombre contiene las palabras **"fecha"** o **"date"** son convertidas explícitamente al tipo de dato `Date`, garantizando consistencia durante posteriores transformaciones y consultas analíticas.
+todas las columnas de tipo string reciben `trim` y `upper` para normalizar espacios y mayúsculas. Las columnas cuyo nombre contiene "fecha" o "date" se castean a `DateType` con el formato dd-MM-yyyy que viene de Bronze.
 
 #### 4. Protección de datos personales (PII)
 
@@ -429,6 +412,15 @@ Después de estandarizar la información, se identifican las columnas catalogada
 Cada una de estas columnas es reemplazada por su correspondiente valor cifrado mediante SHA-256, evitando que la información sensible permanezca visible dentro del Data Lake.
 
 Esta estrategia permite cumplir principios básicos de privacidad sin afectar la posibilidad de realizar procesos de trazabilidad o cruces entre registros.
+
+Como parte de las buenas prácticas de seguridad, se implementó una **User Defined Function (UDF)** que utiliza el algoritmo criptográfico **SHA-256** para anonimizar los campos considerados como información personal identificable (PII) y permite conservar la unicidad de los valores sin almacenar la información original, protegiendo datos sensibles como nombres y documentos de identidad.
+
+```python
+hash_udf = F.udf(
+    lambda v: hashlib.sha256(str(v).encode()).hexdigest() if v is not None else None,
+    StringType()
+)
+```
 
 #### 5. Generación del reporte de calidad
 
@@ -443,16 +435,6 @@ Entre las métricas generadas se encuentran:
 * porcentaje de valores nulos por cada columna.
 
 Esta información es presentada en consola durante la ejecución del pipeline y permite monitorear rápidamente la calidad de los datos extraídos desde la fuente transaccional.
-
-### Resultado del proceso
-
-Como resultado de esta etapa, la función retorna dos conjuntos de datos independientes:
-
-* **DataFrame conforme:** contiene únicamente los registros que cumplen las reglas de calidad establecidas y que continuarán hacia la capa **Silver**.
-
-* **DataFrame de errores:** almacena los registros rechazados junto con la información necesaria para su auditoría y posterior análisis.
-
-Esta separación facilita el seguimiento de incidentes de calidad sin perder la trazabilidad de la información descartada, práctica común en arquitecturas modernas de ingeniería de datos.
 
 ## Carga de la capa Silver (Tablas de carga completa)
 
@@ -482,23 +464,6 @@ Posteriormente se invoca la función `transformar()`, responsable de ejecutar la
 
 Como resultado, la función devuelve dos DataFrames independientes: uno con información conforme y otro con los registros rechazados.
 
-### Almacenamiento de registros rechazados
-
-Cuando existen registros que incumplen las reglas de calidad, estos son almacenados en una ubicación independiente dentro de la capa Silver.
-
-La información se escribe utilizando el formato **Delta Lake** y el modo **Append**, permitiendo conservar el historial de errores generado en cada ejecución del pipeline.
-
-
-Esta separación facilita la auditoría y el análisis posterior de los registros rechazados sin afectar el conjunto de datos utilizado por los procesos analíticos.
-
-### Almacenamiento de datos conformes
-
-Los registros que superan todas las validaciones son almacenados en la zona **cleaned** de la capa Silver utilizando el formato **Delta Lake**.
-
-La escritura se realiza en modo **Overwrite**, reemplazando completamente el contenido anterior de las tablas maestras, comportamiento consistente con una estrategia de carga completa (*Full Load*).
-
-Adicionalmente, se habilita la opción `overwriteSchema`, permitiendo actualizar automáticamente el esquema en caso de modificaciones controladas durante la evolución del proyecto.
-
 ### Registro de tablas en el Metastore
 
 Finalmente, cada conjunto de datos es registrado como una tabla administrada mediante la instrucción:
@@ -510,12 +475,6 @@ LOCATION '<ruta>'
 ```
 
 De esta forma, las tablas quedan disponibles para ser consultadas directamente mediante **Spark SQL**, sin necesidad de acceder manualmente a los archivos almacenados en el Data Lake.
-
-### Resultado del proceso
-
-Como resultado de esta etapa se obtiene una capa **Silver** compuesta por datos limpios, estandarizados y protegidos, almacenados en formato **Delta Lake** y registrados dentro del catálogo de Databricks.
-
-Esta capa constituye la base para las siguientes etapas del proyecto, donde se realizarán integraciones, enriquecimiento de datos y construcción de modelos analíticos en la capa **Gold**.
 
 ## Carga de la capa Silver (Tablas de carga incremental)
 
@@ -597,8 +556,29 @@ Durante la primera ejecución, el pipeline registra automáticamente cada tabla 
 
 De esta manera, las tablas quedan disponibles para consultas mediante Spark SQL, facilitando su utilización en procesos posteriores de integración, modelado analítico y construcción de la capa Gold.
 
-### Resultado del proceso
+#### Transformación de datos de Silver a Gold
 
-Como resultado de esta etapa, las tablas transaccionales quedan consolidadas en la capa **Silver** como tablas Delta particionadas por período, con datos estandarizados, validados y protegidos.
+Esta fase toma los datos ya limpios y transformados de la capa *Silver* y los materializa en la capa *Gold* como tablas Delta analíticas organizadas en un modelo dimensional. Cada notebook sigue el mismo patrón: crear la vista temporal con la lógica de negocio, crear la tabla destino si no existe, y ejecutar el `DELETE` + `INSERT` o el ciclo de periodos según el tipo de carga.
 
-La implementación permite realizar cargas incrementales y reprocesamientos históricos de manera eficiente, preservando la integridad de la información y evitando reprocesar datos que no han sufrido modificaciones.
+#### Dimensiones "Carga full"
+
+Las tres dimensiones se reemplazan completas en cada ejecución porque son catálogos maestros que no tienen historial por periodo.
+
+* *dim_clientes* : construye la vista tvw_dim_clientes desde silver.cleaned.tb_clientes_core. Renombra los campos a nombres de negocio, concatena nombre y apellido en NOMBRE_COMPLETO y calcula la edad con MONTHS_BETWEEN. La escritura hace DELETE total seguido de `INSERT`, reemplazando el contenido completo de la tabla.
+
+* *dim_productos* : construye tvw_dim_productos desde silver.cleaned.tb_productos_cat. Calcula la `TASA_MENSUAL_EQUIVALENTE` a partir de la tasa EA (efectiva anual) y clasifica cada producto en su `FAMILIA_PRODUCTO` (CREDITO, AHORRO o TRANSACCIONAL) según el tipo de producto. Misma estrategia de escritura `DELETE` + `INSERT`.
+
+* *dim_canal* : construye `tvw_dim_canal` desde `silver.cleaned.tb_sucursales_red`. Clasifica cada punto de atención en su canal digital (APP MOVIL, PORTAL WEB, CORRESPONSAL BANCARIO). `DELETE` + `INSERT` completo.
+
+#### Tablas de hechos "Carga incremental por periodo"
+
+Las tres facts manejan dos modos controlados por `widgets` de Databricks: `automatico` procesa solo el periodo del mes en curso, e `historico` itera sobre un rango de periodos definido por `periodo_inicial` y `periodo_final`.
+
+En ambos modos el patrón es crear la vista temporal con la lógica, hacer `DELETE WHERE PERIODO = X` sobre la tabla destino, e `INSERT` desde la vista. Esto permite reprocesar un periodo sin afectar los demás.
+
+* *fact_transacciones* fuente: `silver.cleaned.tb_mov_financieros`. Calcula el `MONTO_USD` dividiendo por la TRM de referencia, clasifica el `FLAG_HORARIO` como HABIL o NO HABIL según día de semana y hora, y calcula el `PROMEDIO_MOVIL_30D` y `FLAG_ANOMALIA` usando una ventana de 30 días por cliente. Valida que el cliente exista en `dim_clientes` mediante `INNER JOIN`.
+
+* *fact_cartera* fuente: `silver.cleaned.tb_obligaciones`. Clasifica cada obligación en su `BUCKET_MORA` (AL DIA, RANGO 1, RANGO 2, RANGO 3, DETERIORADO) y su `CLASIFICACION_REGULATORIA` (A/B/C/D/E) según días de mora. Calcula la `PROVISION_ESTIMADA` aplicando los porcentajes mínimos regulatorios de la Superintendencia financiera sobre el saldo de capital.
+
+* *fact_rentabilidad_cliente* fuentes: `silver.cleaned.tb_mov_financieros` y `silver.cleaned.tb_comisiones_log`. Agrega intereses y comisiones por cliente y periodo con un `FULL OUTER JOIN`para no perder registros que existan en solo una de las dos fuentes. Calcula el `INGRESO_TOTAL` y el `CLTV_12M` como la suma acumulada de los últimos 12 periodos usando una ventana `ROWS BETWEEN 11 PRECEDING AND CURRENT ROW`.
+
