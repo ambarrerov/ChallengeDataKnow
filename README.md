@@ -582,3 +582,87 @@ En ambos modos el patrón es crear la vista temporal con la lógica, hacer `DELE
 
 * *fact_rentabilidad_cliente* fuentes: `silver.cleaned.tb_mov_financieros` y `silver.cleaned.tb_comisiones_log`. Agrega intereses y comisiones por cliente y periodo con un `FULL OUTER JOIN`para no perder registros que existan en solo una de las dos fuentes. Calcula el `INGRESO_TOTAL` y el `CLTV_12M` como la suma acumulada de los últimos 12 periodos usando una ventana `ROWS BETWEEN 11 PRECEDING AND CURRENT ROW`.
 
+## FASE 4 — ORQUESTACION DEL PIPELINE
+
+<!-- ENTREGABLES FASE 4
+• Definición del DAG o pipeline principal en la carpeta /orchestration del repositorio
+• Captura de pantalla del DAG ejecutado exitosamente con el estado de cada tarea
+visible
+• Evidencia de la alerta de fallo: captura del correo o mensaje recibido ante una
+ejecución fallida de prueba
+• Evidencia del reporte diario de éxito: captura del correo o mensaje de resumen
+recibido
+• Acceso al dashboard o log de monitoreo con el historial de al menos dos
+ejecuciones-->
+
+#### Definición del DAG o pipeline principal
+
+Para la Fase 4 de la prueba se pide una representación visual de un flujo de trabajo del DAG:
+
+
+`/Workspace/Users/andres_anbu@hotmail.com/ChallengeDataKnow/orchestration/finbank_pipeline.yml`
+
+![DAG](.imgs/_fase_4/DAG.png)
+
+Después de correr el Job esta fue la captura de pantalla:
+
+![success_DAG](.imgs/_fase_4/success_DAG.png)
+
+La evidencia de la alerta de fallo, se programó para que se envíe un correo asociado a la cuenta de Azure:
+
+```python
+...
+modo = dbutils.widgets.get("test_fallo") #test_fallo : "modo"
+periodo_final = dbutils.widgets.get("periodo_final")
+periodo_inicial = dbutils.widgets.get("periodo_inicial")   
+...
+```
+
+Para generar el fallo se cambió una parte del código para forzar un error sencillo.
+
+![alertafallo](.imgs/_fase_4/ERROR_confirmation.png)
+
+``` 
+...
+      name: finbank_pipeline
+      email_notifications:
+        on_success:
+          - andres_anbu@hotmail.com
+        on_failure:
+          - andres_anbu@hotmail.com
+...
+
+```
+
+Evidencia del reporte diario, en el `YAML` se configuró una ejecución programada automática diaria a las 02:00 horas del huso horario local del proyecto.
+
+```
+...
+          - andres_anbu@hotmail.com
+      schedule:
+        quartz_cron_expression: "0 0 2 * * ?"   # todos los dias a las 2:00am
+        timezone_id: America/Bogota
+        pause_status: UNPAUSED
+      tasks:
+...
+```
+
+Acceso al dashboard o log de monitoreo con el historial de al menos dos
+ejecuciones
+
+![hist_runs](.imgs/_fase_4/historial_runs.png)
+
+## FASE 5 — GOBIERNO, SEGURIDAD Y CALIDAD
+
+
+<!-- ENTREGABLES FASE 5
+• Definición de los tres roles implementados con evidencia de la configuración en la
+plataforma
+• Demostración del acceso denegado: evidencia de que el perfil Analista no puede
+acceder a las capas Bronze o Silver directamente
+• Catálogo de datos básico en formato Markdown ubicado en la carpeta /docs del
+repositorio
+• Evidencia del funcionamiento de las tres alertas: fallo, reporte diario y anomalías
+de volumen
+• CHANGELOG.md con el historial de cambios del proyecto durante el desarrollo de
+la prueba-->
