@@ -2,11 +2,11 @@
 <!--        PORTADA        -->
 <!-- ===================== -->
 
-# 1. **Prueba Técnica – Ingeniería de Datos Dataknow**
+# Prueba Técnica – Ingeniería de Datos Dataknow
 
 ![Logo DataKnow](.imgs/_dataknow/logo2020DataKnow.png)
 
-> **Agradecimientos:** Muchas gracias a los evaluadores por dedicar tiempo a revisar este proyecto.
+> Agradecimientos: Muchas gracias a los evaluadores por dedicar tiempo a revisar este proyecto.
 
 **Autor:** Andres Mauricio Barrero Velásquez  
 **Correo:** andresvlasquez@gmail.com 
@@ -28,7 +28,7 @@ Resultado del proceso de carga
 
 ---
 
-# 2. Escenario Finbank
+# Escenario Finbank
 
 FinBank S.A. es un banco digital fundado en 2015 con presencia en cinco países de Latinoamérica: Colombia, Mexico, Peru, Chile y Argentina. Opera exclusivamente a través de canales digitales, aplicación móvil, portal web y una red de corresponsales bancarios, y cuenta con más de dos millones de clientes activos. Su cartera de crédito supera los USD 800 millones y el banco procesa en promedio 1.2 millones de transacciones diarias entre pagos, transferencias, recargas y avances. 
     
@@ -50,7 +50,11 @@ Como motor de base de datos relacional elegí Azure SQL Database, debido a que m
 
 ## FASE 1 — GENERACION DE DATOS Y MODELO RELACIONAL
 
-Para la generacion de datos se tomo como guia las tablas que sugeria el escenario Finbank, no obstante se usaron script de generacion de mockup usando la libreria de `faker` de python. Importante aclarar que los script siguien las instrucciones de calidad de datos(distribucion normal de nullos etc) y que fueron generado con IA solo la generacion de estos datasets, sin embargo la logica de despliegue de los datos usando el controlador de `JDBC` en spark para poblaar tablas en una base de datos `sql server` en azure como fuente ficticia de datos para el desarrollo de todo este escenario.
+La primera fase del proyecto consistió en construir una fuente de datos ficticia que representara la operación de FinBank.
+
+Para ello se tomó como guía el modelo de datos sugerido por el escenario de la prueba y se desarrollaron scripts en Python que generan información sintética utilizando la librería `Faker` de python.
+
+La generación de los datos fue asistida por IA como apoyo para modelar escenarios propios del dominio bancario y producir información consistente. Toda la arquitectura del proyecto, el diseño del modelo relacional, la configuración del entorno, la integración con Azure SQL Database, la implementación del proceso de carga mediante Apache Spark y `JDBC`, así como la organización general del pipeline
 
 
 <!-- ENTREGABLES FASE 1
@@ -214,3 +218,387 @@ nota: para más detalle: data-generation/README.md
 
 Con esta primera fase se obtuvo una fuente de datos relacional completamente funcional, desplegada sobre Azure SQL Database, que servirá como base para las siguientes etapas del proyecto: procesamiento, calidad de datos, modelado analítico y explotación de la información mediante Apache Spark.
 
+
+## FASE 3 — PIPELINE END TO END FLUJO DE DATOS: ARQUITECTURA MEDALLION
+
+Para esta fase es necesario tener claro los objetivos en cada una de las capas (Bronze, Silver y Gold) para una optima transformación de los datos.
+
+<!-- ENTREGABLES FASE 3
+• Código completo de las tres capas del pipeline en la carpeta /pipelines del
+repositorio
+• Tabla de errores del pipeline con al menos un registro de prueba que demuestre su
+funcionamiento
+• Reporte de calidad de datos generado por la capa Silver con métricas de al menos
+una ejecución
+• Al menos tres tablas o vistas de agregación en la capa Gold con sus definiciones
+documentadas
+• Resultados de las cinco pruebas de calidad de datos con el reporte de aprobación
+o fallo -->
+
+### Codigo completo de las tres capas 
+
+En la capa Bronze los datos llegan en crudo, con el mínimo de transformaciones. Es importante que los datos no sufran mayores cambios en esata capa para permitir la reproducción de cualquier estado anterior del pipeline.
+
+
+#### Inicialización del entorno
+
+En el notebook `pipelines/app/extraction/ingesta_sql` Primero se importan todas las librerías necesarias para la ejecución del Pipieline y luego se defiinen dos variables 
+
+CONFIG_PATH corresponde a la ubicación del archivo de configuración utilizado durante la ejecución del proyecto.
+
+BRONCE_PATH define el contenedor del Azure Data Lake Storage Gen2 donde se almacenan los datos extraídos desde la base de datos relacional. Toda la información es escrita en formato `Parquet`, constituyendo la capa Bronze de la arquitectura Medallion implementada para el proyecto.
+
+```python
+CONFIG_PATH = "../config/config.json"
+BRONCE_PATH = "abfss://bronze@stdataknowdeveastus001.dfs.core.windows.net/"
+```
+
+se establecen `widgets` para automatizar procesos con parámetros de entrada al momento de ejecutarse, se establecen dos modos para ejecutar. el modo Automático, que procesa únicamente el período actual y el modo Histórico que permite reprocesar información de un rango de meses, itera sobre todos los meses comprendidos en ese intervalo para recalcular o recargar información histórica.
+
+```python
+modo = dbutils.widgets.get("modo")
+periodo_final = dbutils.widgets.get("periodo_final")
+periodo_inicial = dbutils.widgets.get("periodo_inicial")
+```
+
+Para evitar almacenar credenciales directamente en el código fuente se configura de forma segura la conexión entre Apache Spark (Databricks) y Azure SQL Database la configuración se obtiene desde un archivo `JSON` json.load() y las credenciales se recuperan de Azure Key Vault mediante Databricks Secrets.
+
+```python
+with open(CONFIG_PATH) as f:
+    cfg = json.load(f)
+ 
+SCOPE       = cfg["key_vault"]["scope"]
+KV_KEYS     = cfg["key_vault"]["keys"]
+
+# Leer secretos desde Azure Key Vault (kv-dataknow-dev-eastus)
+host     = dbutils.secrets.get(SCOPE, KV_KEYS["host"])
+port     = dbutils.secrets.get(SCOPE, KV_KEYS["port"])
+db       = dbutils.secrets.get(SCOPE, KV_KEYS["db"])
+user     = dbutils.secrets.get(SCOPE, KV_KEYS["user"])
+password = dbutils.secrets.get(SCOPE, KV_KEYS["password"])
+
+driver   = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+ 
+JDBC_URL = (
+    f"jdbc:sqlserver://{host}:{port};"
+    f"databaseName={db};"
+    f"encrypt=true;"
+    f"trustServerCertificate=false;"
+)
+JDBC_PROPS = {
+    "user":     user,
+    "password": password,
+    "driver":   "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+}
+```
+
+#### Extracción de datos hacia la capa Bronze
+
+Este proceso se dividió en dos estrategias, esta separación permite reducir el volumen de datos transferidos durante las ejecuciones periódicas y optimiza el tiempo de procesamiento del pipeline.
+
+Las tablas dimensionales `TB_CLIENTES_CORE, TB_PRODUCTOS_CAT y TB_SUCURSALES_RED` se procesan mediante carga completa, ya que presentan pocos cambios y su volumen es reducido.
+
+Mientras que las tablas de hechos `TB_COMISIONES_LOG, TB_MOV_FINANCIEROS y TB_OBLIGACIONES` se procesan mediante carga incremental, indicando además la columna de fecha utilizada para filtrar la información correspondiente a cada período.
+
+```python
+tb_full = [
+    "TB_CLIENTES_CORE",
+    "TB_PRODUCTOS_CAT",
+    "TB_SUCURSALES_RED"
+]
+
+tb_incremental = {
+    "TB_COMISIONES_LOG" : "fec_cobro",
+    "TB_MOV_FINANCIEROS" : "fec_mov",
+    "TB_OBLIGACIONES" : "fec_desembolso"
+}
+```
+
+La función `extract_full()` realiza la extracción completa de las tablas dimensionales.
+
+Para cada tabla se ejecutan las siguientes actividades:
+
+Se establece la conexión hacia Azure SQL Database mediante JDBC.
+Se lee la totalidad de los registros utilizando Apache Spark.
+Se agregan columnas de auditoría:  
+`_fecha_extraccion`: registra el momento en que se realizó la extracción.  
+`_fuente`: identifica la tabla de origen.  
+Finalmente, la información se almacena en la capa Bronze del Data Lake en formato Parquet, reemplazando completamente la versión anterior.
+
+```python
+def extract_full(list_tb):
+    for i in list_tb:
+        df = spark.read.format("jdbc") \
+            .option("url",      JDBC_URL) \
+            .option("dbtable",  "dbo."+i) \
+            .option("user",     user) \
+            .option("password", password) \
+            .option("driver",   driver) \
+            .load()
+
+        df = df \
+            .withColumn("_fecha_extraccion", F.current_timestamp()) \
+            .withColumn("_fuente", F.lit(i))
+
+        df.write.mode("overwrite").format("parquet").save(BRONCE_PATH + i)
+
+extract_full(tb_full)
+```
+
+Para soportar la carga histórica se implementó la función `generar_periodos()`, la cual construye una lista de meses comprendidos entre un período inicial y un período final, esta lista es utilizada posteriormente por el proceso de extracción incremental para recorrer cada período de manera automática.
+
+```python
+def generar_periodos(periodo_ini, periodo_fin):
+    fmt = "%m-%Y"
+    start = datetime.strptime(periodo_ini, fmt)
+    end   = datetime.strptime(periodo_fin, fmt)
+    periodos = []
+    current = start
+    while current <= end:
+        periodos.append(current.strftime(fmt))
+        current += relativedelta(months=1)
+    return periodos
+```
+
+La función `extract_incremental()` implementa la extracción de información transaccional mediante filtros por fecha y soporta los dos modos de operación mencionados antes Automático e Histórico.
+
+Como resultado de esta fase, la información queda organizada en formato Parquet, esta organización permite mantener separadas las cargas históricas y las cargas incrementales o periódicas, facilitando la trazabilidad, el reprocesamiento y la implementación de arquitecturas tipo Medallion, donde la capa Bronze representa una copia fiel de la información proveniente de los sistemas fuente.
+
+#### Transformación de datos de Bronze a Silver
+
+`pipelines/app/transformation/bronze_to_silver`
+
+Una vez extraída la información hacia la capa **Bronze**, se implementó una etapa de transformación encargada de aplicar reglas básicas de calidad de datos, estandarización y protección de información sensible.
+
+Con el objetivo de favorecer la reutilización del código, todas estas validaciones fueron centralizadas en la función `transformar()`, la cual recibe como entrada un `DataFrame` de Spark y el nombre de la tabla procesada.
+
+##### Enmascaramiento de información sensible
+
+Como parte de las buenas prácticas de seguridad, se implementó una **User Defined Function (UDF)** que utiliza el algoritmo criptográfico **SHA-256** para anonimizar los campos considerados como información personal identificable (PII).
+
+```python
+hash_udf = F.udf(
+    lambda v: hashlib.sha256(str(v).encode()).hexdigest() if v is not None else None,
+    StringType()
+)
+```
+
+El uso de SHA-256 permite conservar la unicidad de los valores sin almacenar la información original, protegiendo datos sensibles como nombres, correos electrónicos o documentos de identidad.
+
+### Reglas de calidad implementadas
+
+Durante la transformación se aplican las siguientes validaciones de manera secuencial.
+
+#### 1. Eliminación de registros duplicados
+
+En primer lugar se eliminan los registros completamente duplicados mediante la función:
+
+```python
+df.dropDuplicates()
+```
+
+Con ello se garantiza que únicamente permanezcan registros únicos dentro del conjunto de datos.
+
+#### 2. Validación de campos obligatorios
+
+Posteriormente se identifica cualquier registro que contenga valores nulos en las columnas de la tabla.
+
+Los registros que incumplen esta regla no son descartados definitivamente; en cambio, son enviados a un **DataFrame de errores**, incorporando información adicional para facilitar su auditoría:
+
+* motivo del rechazo;
+* tabla de origen;
+* fecha y hora del rechazo.
+
+Mientras tanto, únicamente los registros conformes continúan el flujo de transformación.
+
+#### 3. Estandarización de formatos
+
+Con el fin de homogenizar la información proveniente del sistema fuente, se aplican reglas de normalización sobre los datos.
+
+Para las columnas de tipo texto se realizan las siguientes operaciones:
+
+* eliminación de espacios al inicio y al final;
+* conversión de todos los valores a mayúsculas.
+
+Adicionalmente, las columnas cuyo nombre contiene las palabras **"fecha"** o **"date"** son convertidas explícitamente al tipo de dato `Date`, garantizando consistencia durante posteriores transformaciones y consultas analíticas.
+
+#### 4. Protección de datos personales (PII)
+
+Después de estandarizar la información, se identifican las columnas catalogadas como **PII (Personally Identifiable Information)**.
+
+Cada una de estas columnas es reemplazada por su correspondiente valor cifrado mediante SHA-256, evitando que la información sensible permanezca visible dentro del Data Lake.
+
+Esta estrategia permite cumplir principios básicos de privacidad sin afectar la posibilidad de realizar procesos de trazabilidad o cruces entre registros.
+
+#### 5. Generación del reporte de calidad
+
+Finalmente, el proceso calcula diferentes indicadores de calidad para cada tabla procesada.
+
+Entre las métricas generadas se encuentran:
+
+* número de registros originales;
+* cantidad de registros rechazados;
+* cantidad de registros conformes;
+* porcentaje de conformidad;
+* porcentaje de valores nulos por cada columna.
+
+Esta información es presentada en consola durante la ejecución del pipeline y permite monitorear rápidamente la calidad de los datos extraídos desde la fuente transaccional.
+
+### Resultado del proceso
+
+Como resultado de esta etapa, la función retorna dos conjuntos de datos independientes:
+
+* **DataFrame conforme:** contiene únicamente los registros que cumplen las reglas de calidad establecidas y que continuarán hacia la capa **Silver**.
+
+* **DataFrame de errores:** almacena los registros rechazados junto con la información necesaria para su auditoría y posterior análisis.
+
+Esta separación facilita el seguimiento de incidentes de calidad sin perder la trazabilidad de la información descartada, práctica común en arquitecturas modernas de ingeniería de datos.
+
+## Carga de la capa Silver (Tablas de carga completa)
+
+Una vez finalizada la extracción hacia la capa **Bronze**, se ejecuta el proceso de carga de las tablas maestras hacia la capa **Silver**.
+
+La función `cargue_full()` recorre cada una de las tablas definidas para carga completa y aplica el proceso de transformación descrito anteriormente, obteniendo dos conjuntos de datos:
+
+* **Registros conformes**, que cumplen las reglas de calidad establecidas.
+* **Registros rechazados**, que presentan inconsistencias y son enviados a una zona de errores para su posterior análisis.
+
+### Lectura desde Bronze
+
+Para cada tabla se realiza la lectura de los archivos almacenados en formato **Parquet** dentro de la capa Bronze.
+
+Esta capa conserva una copia prácticamente fiel de la información proveniente del sistema fuente y constituye el punto de partida para las transformaciones posteriores.
+
+### Aplicación de reglas de calidad
+
+Posteriormente se invoca la función `transformar()`, responsable de ejecutar las validaciones implementadas durante la fase de transformación, entre ellas:
+
+* eliminación de registros duplicados;
+* validación de campos obligatorios;
+* estandarización de formatos;
+* conversión de tipos de datos;
+* anonimización de información sensible mediante SHA-256;
+* generación de métricas de calidad.
+
+Como resultado, la función devuelve dos DataFrames independientes: uno con información conforme y otro con los registros rechazados.
+
+### Almacenamiento de registros rechazados
+
+Cuando existen registros que incumplen las reglas de calidad, estos son almacenados en una ubicación independiente dentro de la capa Silver.
+
+La información se escribe utilizando el formato **Delta Lake** y el modo **Append**, permitiendo conservar el historial de errores generado en cada ejecución del pipeline.
+
+
+Esta separación facilita la auditoría y el análisis posterior de los registros rechazados sin afectar el conjunto de datos utilizado por los procesos analíticos.
+
+### Almacenamiento de datos conformes
+
+Los registros que superan todas las validaciones son almacenados en la zona **cleaned** de la capa Silver utilizando el formato **Delta Lake**.
+
+La escritura se realiza en modo **Overwrite**, reemplazando completamente el contenido anterior de las tablas maestras, comportamiento consistente con una estrategia de carga completa (*Full Load*).
+
+Adicionalmente, se habilita la opción `overwriteSchema`, permitiendo actualizar automáticamente el esquema en caso de modificaciones controladas durante la evolución del proyecto.
+
+### Registro de tablas en el Metastore
+
+Finalmente, cada conjunto de datos es registrado como una tabla administrada mediante la instrucción:
+
+```sql
+CREATE TABLE IF NOT EXISTS silver.cleaned.<tabla>
+USING DELTA
+LOCATION '<ruta>'
+```
+
+De esta forma, las tablas quedan disponibles para ser consultadas directamente mediante **Spark SQL**, sin necesidad de acceder manualmente a los archivos almacenados en el Data Lake.
+
+### Resultado del proceso
+
+Como resultado de esta etapa se obtiene una capa **Silver** compuesta por datos limpios, estandarizados y protegidos, almacenados en formato **Delta Lake** y registrados dentro del catálogo de Databricks.
+
+Esta capa constituye la base para las siguientes etapas del proyecto, donde se realizarán integraciones, enriquecimiento de datos y construcción de modelos analíticos en la capa **Gold**.
+
+## Carga de la capa Silver (Tablas de carga incremental)
+
+Las tablas transaccionales presentan un crecimiento continuo, por lo que reemplazar completamente su contenido en cada ejecución resultaría ineficiente. Para estos casos se implementó un proceso de carga incremental que procesa únicamente la información correspondiente al período solicitado.
+
+Esta estrategia reduce el volumen de datos procesados, disminuye los tiempos de ejecución y facilita el reprocesamiento de períodos específicos sin afectar el resto de la información almacenada.
+
+### Identificación de períodos a procesar
+
+El pipeline soporta dos modos de ejecución:
+
+* **Modo automático:** procesa únicamente el período correspondiente a la fecha actual.
+* **Modo histórico:** procesa un rango de períodos definido por el usuario.
+
+La función `get_periodos()` determina automáticamente qué meses deben ser procesados, mientras que `generar_periodos()` construye la secuencia de meses cuando se ejecuta una carga histórica.
+
+### Validación de archivos disponibles
+
+Antes de iniciar la lectura, el proceso verifica que existan archivos Parquet para el período solicitado dentro de la capa Bronze.
+
+Esta validación evita fallos durante la ejecución y permite omitir automáticamente aquellos períodos para los cuales no existe información.
+
+En caso de no encontrar archivos, el pipeline registra un mensaje informativo y continúa con el siguiente período sin interrumpir la ejecución.
+
+### Transformación y control de calidad
+
+Para cada período disponible se invoca la función `transformar()`, la cual aplica las reglas de calidad implementadas durante la fase anterior:
+
+* eliminación de registros duplicados;
+* validación de campos obligatorios;
+* estandarización de texto;
+* conversión de tipos de datos;
+* anonimización de información sensible mediante SHA-256.
+
+Adicionalmente, durante esta etapa se incorpora una nueva columna denominada **`periodo`**, utilizada posteriormente como criterio de particionamiento dentro de la capa Silver.
+
+Esta columna permite identificar fácilmente el período al que pertenece cada conjunto de registros y optimiza las consultas sobre información histórica.
+
+### Gestión de registros rechazados
+
+Los registros que no cumplen las reglas de calidad son almacenados en una ubicación independiente utilizando formato **Delta Lake** y modo **Append**, preservando el historial completo de errores generados durante las distintas ejecuciones del pipeline.
+
+Esta estrategia facilita la auditoría de la calidad de los datos sin afectar los procesos analíticos que consumen únicamente información conforme.
+
+### Actualización incremental de la capa Silver
+
+El proceso verifica inicialmente si la tabla Delta ya existe.
+
+* **Si la tabla no existe**, se crea por primera vez escribiendo la información en formato Delta y particionándola por la columna `periodo`.
+
+* **Si la tabla ya existe**, únicamente se reemplaza la información correspondiente al período que está siendo reprocesado.
+
+Para ello se ejecuta previamente una sentencia:
+
+```sql
+DELETE FROM delta.`<ruta_silver>`
+WHERE periodo = '<periodo>'
+```
+
+Posteriormente se insertan los nuevos registros mediante una operación **Append**.
+
+Este enfoque evita duplicados durante los reprocesamientos y garantiza que cada período tenga una única versión vigente dentro de la capa Silver.
+
+### Particionamiento de la información
+
+Las tablas transaccionales son almacenadas utilizando la columna **`periodo`** como criterio de particionamiento.
+
+Esta estrategia ofrece varias ventajas:
+
+* reduce el volumen de datos leído durante las consultas;
+* mejora el rendimiento de los procesos analíticos;
+* simplifica el reprocesamiento de meses específicos;
+* facilita la administración del ciclo de vida de los datos.
+
+
+### Registro en el catálogo de Databricks
+
+Durante la primera ejecución, el pipeline registra automáticamente cada tabla Delta dentro del metastore de Databricks mediante la instrucción `CREATE TABLE IF NOT EXISTS`.
+
+De esta manera, las tablas quedan disponibles para consultas mediante Spark SQL, facilitando su utilización en procesos posteriores de integración, modelado analítico y construcción de la capa Gold.
+
+### Resultado del proceso
+
+Como resultado de esta etapa, las tablas transaccionales quedan consolidadas en la capa **Silver** como tablas Delta particionadas por período, con datos estandarizados, validados y protegidos.
+
+La implementación permite realizar cargas incrementales y reprocesamientos históricos de manera eficiente, preservando la integridad de la información y evitando reprocesar datos que no han sufrido modificaciones.
