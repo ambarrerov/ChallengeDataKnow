@@ -2,7 +2,7 @@
 <!--        PORTADA        -->
 <!-- ===================== -->
 
-# Prueba Técnica – Ingeniería de Datos Dataknow
+# 1. Prueba Técnica – Ingeniería de Datos Dataknow
 
 ![Logo DataKnow](.imgs/_dataknow/logo2020DataKnow.png)
 
@@ -14,21 +14,55 @@
 **Github de este repositorio** https://github.com/ambarrerov/ChallengeDataKnow
 **Linkeln** www.linkedin.com/in/juan-camilo-barrero-velasquez-engineer
 
+**AZURE DP-900, AZURE AZ-900**
+
 ---
 Tabla de contenido
 
-Escenario FinBank
-Motivación de la selección del escenario
-Fase 1 – Generación de datos y modelo relacional
-Generación de datos
-Carga de datos a Azure SQL
-Archivo de configuración
-Modelo entidad-relación
-Resultado del proceso de carga
+- [1. Prueba Técnica – Ingeniería de Datos Dataknow](#1-prueba-técnica--ingeniería-de-datos-dataknow)
+- [2. Escenario Finbank](#2-escenario-finbank)
+  - [2.1. Motivacion de seleccion de escenarion y carga en base de datos relacional](#21-motivacion-de-seleccion-de-escenarion-y-carga-en-base-de-datos-relacional)
+  - [2.2. FASE 1 — GENERACION DE DATOS Y MODELO RELACIONAL](#22-fase-1--generacion-de-datos-y-modelo-relacional)
+    - [2.2.1. Script de generacion de datos dummy](#221-script-de-generacion-de-datos-dummy)
+    - [2.2.2. cargue de datos a base sql](#222-cargue-de-datos-a-base-sql)
+      - [2.2.2.1. configuracion de el script de geneacion de datos:](#2221-configuracion-de-el-script-de-geneacion-de-datos)
+    - [2.2.3. Representacion grafica ER de las tablas generadas](#223-representacion-grafica-er-de-las-tablas-generadas)
+    - [2.2.4. Demostracion de la ejecucion de cargue de datos:](#224-demostracion-de-la-ejecucion-de-cargue-de-datos)
+  - [2.3. FASE 2 — INFRAESTRUCTURA COMO CODIGO (ARQUITECTURA)](#23-fase-2--infraestructura-como-codigo-arquitectura)
+    - [2.3.1. Arquitectura Datalakehouse-Finbank](#231-arquitectura-datalakehouse-finbank)
+  - [2.4. FASE 3 — PIPELINE END TO END FLUJO DE DATOS: ARQUITECTURA MEDALLION](#24-fase-3--pipeline-end-to-end-flujo-de-datos-arquitectura-medallion)
+    - [2.4.1. Codigo completo de las tres capas](#241-codigo-completo-de-las-tres-capas)
+      - [2.4.1.1. Inicialización del entorno](#2411-inicialización-del-entorno)
+      - [2.4.1.2. Extracción de datos hacia la capa Bronze](#2412-extracción-de-datos-hacia-la-capa-bronze)
+      - [2.4.1.3. Transformación de datos de Bronze a Silver](#2413-transformación-de-datos-de-bronze-a-silver)
+    - [2.4.2. Reglas de calidad implementadas](#242-reglas-de-calidad-implementadas)
+      - [2.4.2.1. Eliminación de registros duplicados](#2421-eliminación-de-registros-duplicados)
+      - [2.4.2.2. Detección de nulos](#2422-detección-de-nulos)
+      - [2.4.2.3. Estandarización de tipos](#2423-estandarización-de-tipos)
+      - [2.4.2.4. Protección de datos personales (PII)](#2424-protección-de-datos-personales-pii)
+      - [2.4.2.5. Generación del reporte de calidad](#2425-generación-del-reporte-de-calidad)
+    - [2.4.3. Carga de la capa Silver (Tablas de carga completa)](#243-carga-de-la-capa-silver-tablas-de-carga-completa)
+      - [2.5.1. Lectura desde Bronze](#251-lectura-desde-bronze)
+      - [2.5.2. Aplicación de reglas de calidad](#252-aplicación-de-reglas-de-calidad)
+      - [2.5.3. Registro de tablas en el Metastore](#253-registro-de-tablas-en-el-metastore)
+    - [2.4.4. Carga de la capa Silver (Tablas de carga incremental)](#244-carga-de-la-capa-silver-tablas-de-carga-incremental)
+    - [2.4.5. Identificación de períodos a procesar](#245-identificación-de-períodos-a-procesar)
+    - [2.4.6. Validación de archivos disponibles](#246-validación-de-archivos-disponibles)
+    - [2.4.7. Transformación y control de calidad](#247-transformación-y-control-de-calidad)
+    - [2.4.8. Gestión de registros rechazados](#248-gestión-de-registros-rechazados)
+    - [2.4.9. Actualización incremental de la capa Silver](#249-actualización-incremental-de-la-capa-silver)
+    - [2.4.10. Particionamiento de la información](#2410-particionamiento-de-la-información)
+    - [2.4.11. Registro en el catálogo de Databricks](#2411-registro-en-el-catálogo-de-databricks)
+    - [2.4.12. Transformación de datos de Silver a Gold](#2412-transformación-de-datos-de-silver-a-gold)
+      - [2.4.12.1. Dimensiones "Carga full"](#24121-dimensiones-carga-full)
+      - [2.4.12.2. Tablas de hechos "Carga incremental por periodo"](#24122-tablas-de-hechos-carga-incremental-por-periodo)
+  - [2.5. FASE 4 — ORQUESTACION DEL PIPELINE](#25-fase-4--orquestacion-del-pipeline)
+      - [2.5.1. Definición del DAG o pipeline principal](#251-definición-del-dag-o-pipeline-principal)
+  - [2.6. FASE 5 — GOBIERNO, SEGURIDAD Y CALIDAD](#26-fase-5--gobierno-seguridad-y-calidad)
 
 ---
 
-# Escenario Finbank
+# 2. Escenario Finbank
 
 FinBank S.A. es un banco digital fundado en 2015 con presencia en cinco países de Latinoamérica: Colombia, Mexico, Peru, Chile y Argentina. Opera exclusivamente a través de canales digitales, aplicación móvil, portal web y una red de corresponsales bancarios, y cuenta con más de dos millones de clientes activos. Su cartera de crédito supera los USD 800 millones y el banco procesa en promedio 1.2 millones de transacciones diarias entre pagos, transferencias, recargas y avances. 
     
@@ -42,13 +76,17 @@ Por otra parte, el área de Prevención de Fraude opera mediante reglas manuales
     
 La necesidad principal consiste en desarrollar un pipeline que consolide toda esta información para que ambas áreas puedan consumir datos confiables y actualizados sin depender de procesos manuales.
 
-## Motivacion de seleccion de escenarion y carga en base de datos relacional
+## 2.1. Motivacion de seleccion de escenarion y carga en base de datos relacional
 
 De los cuatro sectores propuestos decidí trabajar el escenario de Banca y Servicios Financieros, ya que es un dominio que considero especialmente interesante y cuyos conceptos me resultan familiares. Además, me pareció el escenario más desafiante para demostrar habilidades relacionadas con Ingeniería de Datos.
 
-Como motor de base de datos relacional elegí Azure SQL Database, debido a que me encuentro familiarizado con el ecosistema de Microsoft Azure y cuento con la certificación Microsoft Azure Fundamentals (AZ-900). Esto permitió desarrollar una arquitectura similar a la que podría encontrarse en un entorno empresarial. 
+Como motor de base de datos relacional elegí Azure SQL Database, con una subscripción de prueba gratuita con un crédito inicial de 200 USD, debido a que me encuentro familiarizado con el ecosistema de Microsoft Azure y cuento con la certificación Microsoft Azure Fundamentals (AZ-900). Esto permitió desarrollar una arquitectura similar a la que podría encontrarse en un entorno empresarial.
 
-## FASE 1 — GENERACION DE DATOS Y MODELO RELACIONAL
+![Arquitectura_fibank](docs/ARQUITECTURA_FINBANK.png)
+
+nota: plan de despliegue de recursos
+
+## 2.2. FASE 1 — GENERACION DE DATOS Y MODELO RELACIONAL
 
 La primera fase del proyecto consistió en construir una fuente de datos ficticia que representara la operación de FinBank.
 
@@ -67,7 +105,7 @@ carpeta /docs del repositorio
 COUNT(*) por tabla -->
 
 
-### Script de generacion de datos dummy
+### 2.2.1. Script de generacion de datos dummy
 
 nota: el script de generacion esta dentro del notebook `datagen.pyibn`
 
@@ -97,7 +135,7 @@ def generar_comisiones():
     ...
 ```
 
-### cargue de datos a base sql
+### 2.2.2. cargue de datos a base sql
 
 Una vez generados los datos, estos fueron cargados hacia Azure SQL Database utilizando Apache Spark mediante el controlador `JDBC`.
 
@@ -125,7 +163,7 @@ def write_jdbc(df_spark, table, mode="overwrite"):
 
 ```
 
-#### configuracion de el script de geneacion de datos:
+#### 2.2.2.1. configuracion de el script de geneacion de datos:
 
 Todos los parámetros relacionados con la generación de datos y la conexión a la base de datos fueron centralizados en el archivo con ruta `/config/config.json`
 
@@ -173,7 +211,7 @@ Este archivo permite modificar el comportamiento del proceso sin necesidad de al
     }
 ```
 
-### Representacion grafica ER de las tablas generadas
+### 2.2.3. Representacion grafica ER de las tablas generadas
 
 ![Modelo ER](.imgs/_fase_1/ER_FINBANK.png)
 
@@ -195,7 +233,7 @@ Las tablas de hechos registran los principales eventos operacionales del banco:
 
 nota: para más detalle: data-generation/README.md
 
-### Demostracion de la ejecucion de cargue de datos:
+### 2.2.4. Demostracion de la ejecucion de cargue de datos:
 
 ![Tablas](.imgs/_fase_1/SS-tablas.png)
 
@@ -219,7 +257,50 @@ nota: para más detalle: data-generation/README.md
 Con esta primera fase se obtuvo una fuente de datos relacional completamente funcional, desplegada sobre Azure SQL Database, que servirá como base para las siguientes etapas del proyecto: procesamiento, calidad de datos, modelado analítico y explotación de la información mediante Apache Spark.
 
 
-## FASE 3 — PIPELINE END TO END FLUJO DE DATOS: ARQUITECTURA MEDALLION
+## 2.3. FASE 2 — INFRAESTRUCTURA COMO CODIGO (ARQUITECTURA)
+
+nota: Esta fase no se hizo con IaC, todo el despliegue de recursos se hizo con interfase gráfica, sin embargo se aportó la plantilla bicep incluida en la carpeta `infra/main.bicep`
+
+<!-- ENTREGABLES FASE 2
+• Código IaC completo en la carpeta /infra del repositorio, con README de
+instrucciones de despliegue
+• Evidencia del despliegue exitoso: captura de pantalla del portal o salida del
+terminal con el resultado del apply
+• Lista de recursos creados con sus nombres, regiones y propósito dentro de la
+solución
+• Archivo de variables o parámetros separado del código principal, sin credenciales
+expuestas -->
+
+
+```bicep
+@secure()
+param vulnerabilityAssessments_Default_storageContainerPath string
+param workspaces_Dataknow_dev_name string = 'Dataknow-dev'
+param vaults_kv_dataknow_dev_eastus_name string = 'kv-dataknow-dev-eastus'
+param accessConnectors_acc_dataknow_dev_name string = 'acc-dataknow-dev'
+param servers_sv_db_dataknow_dev_centralus_001_name string = 'sv-db-dataknow-dev-centralus-001'
+param storageAccounts_stdataknowdeveastus001_name string = 'stdataknowdeveastus001'
+
+resource accessConnectors_acc_dataknow_dev_name_resource 'Microsoft.Databricks/accessConnectors@2026-01-01' = {
+  name: accessConnectors_acc_dataknow_dev_name
+  location: 'eastus'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {}
+}
+```
+### 2.3.1. Arquitectura Datalakehouse-Finbank
+
+A continuación se desplegó una arquitectura tipo lakehouse que se desplegó
+
+![Arquitectura](.imgs/_fase_2/Arquitectura_lakehouse.jpeg)
+
+los recursos que se desplegaron fueron, una base de datos SLQ server para una fuente de datos. un Key vault para la administración de secretos, un storage account para crear los contenedores de Bronze, Silver y Gold con administración externa, un word space de databricks para la adminsitración del lakehouse.
+
+![Recursos](.imgs/_fase_2/Resources.png)
+
+## 2.4. FASE 3 — PIPELINE END TO END FLUJO DE DATOS: ARQUITECTURA MEDALLION
 
 Para esta fase es necesario tener claro los objetivos en cada una de las capas (Bronze, Silver y Gold) para una optima transformación de los datos.
 
@@ -235,12 +316,12 @@ documentadas
 • Resultados de las cinco pruebas de calidad de datos con el reporte de aprobación
 o fallo -->
 
-### Codigo completo de las tres capas 
+### 2.4.1. Codigo completo de las tres capas
 
 En la capa Bronze los datos llegan en crudo, con el mínimo de transformaciones. Es importante que los datos no sufran mayores cambios en esata capa para permitir la reproducción de cualquier estado anterior del pipeline.
 
 
-#### Inicialización del entorno
+#### 2.4.1.1. Inicialización del entorno
 
 En el notebook `pipelines/app/extraction/ingesta_sql` Primero se importan todas las librerías necesarias para la ejecución del Pipieline y luego se defiinen dos variables 
 
@@ -292,7 +373,7 @@ JDBC_PROPS = {
 }
 ```
 
-#### Extracción de datos hacia la capa Bronze
+#### 2.4.1.2. Extracción de datos hacia la capa Bronze
 
 Este proceso se dividió en dos estrategias, esta separación permite reducir el volumen de datos transferidos durante las ejecuciones periódicas y optimiza el tiempo de procesamiento del pipeline.
 
@@ -364,7 +445,7 @@ La función `extract_incremental()` implementa la extracción de información tr
 
 Como resultado de esta fase, la información queda organizada en formato Parquet, esta organización permite mantener separadas las cargas históricas y las cargas incrementales o periódicas, facilitando la trazabilidad, el reprocesamiento y la implementación de arquitecturas tipo Medallion, donde la capa Bronze representa una copia fiel de la información proveniente de los sistemas fuente.
 
-#### Transformación de datos de Bronze a Silver
+#### 2.4.1.3. Transformación de datos de Bronze a Silver
 
 en el notebook `pipelines/app/transformation/bronze_to_silver` se realiza todo el proceso de transformación.
 
@@ -373,11 +454,11 @@ Una vez extraída la información hacia la capa **Bronze**, se implementó una e
 Con el objetivo de favorecer la reutilización del código, todas estas validaciones fueron centralizadas en la función `transformar()`, la cual recibe como entrada un `DataFrame` de Spark y el nombre de la tabla procesada.
 
 
-### Reglas de calidad implementadas
+### 2.4.2. Reglas de calidad implementadas
 
 Durante la transformación se aplican las siguientes validaciones de manera secuencial.
 
-#### 1. Eliminación de registros duplicados
+#### 2.4.2.1. Eliminación de registros duplicados
 
 En primer lugar se eliminan los registros completamente duplicados mediante la función:
 
@@ -387,7 +468,7 @@ df.dropDuplicates()
 
 Con ello se garantiza que únicamente permanezcan registros únicos dentro del conjunto de datos.
 
-#### 2. Detección de nulos
+#### 2.4.2.2. Detección de nulos
 
 Posteriormente se identifica cualquier registro que contenga valores nulos `null` en las columnas de la tabla.
 
@@ -399,13 +480,13 @@ Los registros que incumplen esta regla no son descartados definitivamente; en ca
 
 Mientras tanto, únicamente los registros conformes continúan el flujo de transformación.
 
-#### 3. Estandarización de tipos
+#### 2.4.2.3. Estandarización de tipos
 
 Con el fin de homogenizar la información proveniente del sistema fuente, se aplican reglas de normalización sobre los datos.
 
 todas las columnas de tipo string reciben `trim` y `upper` para normalizar espacios y mayúsculas. Las columnas cuyo nombre contiene "fecha" o "date" se castean a `DateType` con el formato dd-MM-yyyy que viene de Bronze.
 
-#### 4. Protección de datos personales (PII)
+#### 2.4.2.4. Protección de datos personales (PII)
 
 Después de estandarizar la información, se identifican las columnas catalogadas como **PII (Personally Identifiable Information)**.
 
@@ -422,7 +503,7 @@ hash_udf = F.udf(
 )
 ```
 
-#### 5. Generación del reporte de calidad
+#### 2.4.2.5. Generación del reporte de calidad
 
 Finalmente, el proceso calcula diferentes indicadores de calidad para cada tabla procesada.
 
@@ -436,7 +517,7 @@ Entre las métricas generadas se encuentran:
 
 Esta información es presentada en consola durante la ejecución del pipeline y permite monitorear rápidamente la calidad de los datos extraídos desde la fuente transaccional.
 
-## Carga de la capa Silver (Tablas de carga completa)
+### 2.4.3. Carga de la capa Silver (Tablas de carga completa)
 
 Una vez finalizada la extracción hacia la capa **Bronze**, se ejecuta el proceso de carga de las tablas maestras hacia la capa **Silver**.
 
@@ -445,13 +526,13 @@ La función `cargue_full()` recorre cada una de las tablas definidas para carga 
 * **Registros conformes**, que cumplen las reglas de calidad establecidas.
 * **Registros rechazados**, que presentan inconsistencias y son enviados a una zona de errores para su posterior análisis.
 
-### Lectura desde Bronze
+#### 2.5.1. Lectura desde Bronze
 
 Para cada tabla se realiza la lectura de los archivos almacenados en formato **Parquet** dentro de la capa Bronze.
 
 Esta capa conserva una copia prácticamente fiel de la información proveniente del sistema fuente y constituye el punto de partida para las transformaciones posteriores.
 
-### Aplicación de reglas de calidad
+#### 2.5.2. Aplicación de reglas de calidad
 
 Posteriormente se invoca la función `transformar()`, responsable de ejecutar las validaciones implementadas durante la fase de transformación, entre ellas:
 
@@ -464,7 +545,7 @@ Posteriormente se invoca la función `transformar()`, responsable de ejecutar la
 
 Como resultado, la función devuelve dos DataFrames independientes: uno con información conforme y otro con los registros rechazados.
 
-### Registro de tablas en el Metastore
+#### 2.5.3. Registro de tablas en el Metastore
 
 Finalmente, cada conjunto de datos es registrado como una tabla administrada mediante la instrucción:
 
@@ -476,13 +557,13 @@ LOCATION '<ruta>'
 
 De esta forma, las tablas quedan disponibles para ser consultadas directamente mediante **Spark SQL**, sin necesidad de acceder manualmente a los archivos almacenados en el Data Lake.
 
-## Carga de la capa Silver (Tablas de carga incremental)
+### 2.4.4. Carga de la capa Silver (Tablas de carga incremental)
 
 Las tablas transaccionales presentan un crecimiento continuo, por lo que reemplazar completamente su contenido en cada ejecución resultaría ineficiente. Para estos casos se implementó un proceso de carga incremental que procesa únicamente la información correspondiente al período solicitado.
 
 Esta estrategia reduce el volumen de datos procesados, disminuye los tiempos de ejecución y facilita el reprocesamiento de períodos específicos sin afectar el resto de la información almacenada.
 
-### Identificación de períodos a procesar
+### 2.4.5. Identificación de períodos a procesar
 
 El pipeline soporta dos modos de ejecución:
 
@@ -491,7 +572,7 @@ El pipeline soporta dos modos de ejecución:
 
 La función `get_periodos()` determina automáticamente qué meses deben ser procesados, mientras que `generar_periodos()` construye la secuencia de meses cuando se ejecuta una carga histórica.
 
-### Validación de archivos disponibles
+### 2.4.6. Validación de archivos disponibles
 
 Antes de iniciar la lectura, el proceso verifica que existan archivos Parquet para el período solicitado dentro de la capa Bronze.
 
@@ -499,7 +580,7 @@ Esta validación evita fallos durante la ejecución y permite omitir automática
 
 En caso de no encontrar archivos, el pipeline registra un mensaje informativo y continúa con el siguiente período sin interrumpir la ejecución.
 
-### Transformación y control de calidad
+### 2.4.7. Transformación y control de calidad
 
 Para cada período disponible se invoca la función `transformar()`, la cual aplica las reglas de calidad implementadas durante la fase anterior:
 
@@ -513,13 +594,13 @@ Adicionalmente, durante esta etapa se incorpora una nueva columna denominada **`
 
 Esta columna permite identificar fácilmente el período al que pertenece cada conjunto de registros y optimiza las consultas sobre información histórica.
 
-### Gestión de registros rechazados
+### 2.4.8. Gestión de registros rechazados
 
 Los registros que no cumplen las reglas de calidad son almacenados en una ubicación independiente utilizando formato **Delta Lake** y modo **Append**, preservando el historial completo de errores generados durante las distintas ejecuciones del pipeline.
 
 Esta estrategia facilita la auditoría de la calidad de los datos sin afectar los procesos analíticos que consumen únicamente información conforme.
 
-### Actualización incremental de la capa Silver
+### 2.4.9. Actualización incremental de la capa Silver
 
 El proceso verifica inicialmente si la tabla Delta ya existe.
 
@@ -538,7 +619,7 @@ Posteriormente se insertan los nuevos registros mediante una operación **Append
 
 Este enfoque evita duplicados durante los reprocesamientos y garantiza que cada período tenga una única versión vigente dentro de la capa Silver.
 
-### Particionamiento de la información
+### 2.4.10. Particionamiento de la información
 
 Las tablas transaccionales son almacenadas utilizando la columna **`periodo`** como criterio de particionamiento.
 
@@ -550,17 +631,17 @@ Esta estrategia ofrece varias ventajas:
 * facilita la administración del ciclo de vida de los datos.
 
 
-### Registro en el catálogo de Databricks
+### 2.4.11. Registro en el catálogo de Databricks
 
 Durante la primera ejecución, el pipeline registra automáticamente cada tabla Delta dentro del metastore de Databricks mediante la instrucción `CREATE TABLE IF NOT EXISTS`.
 
 De esta manera, las tablas quedan disponibles para consultas mediante Spark SQL, facilitando su utilización en procesos posteriores de integración, modelado analítico y construcción de la capa Gold.
 
-#### Transformación de datos de Silver a Gold
+### 2.4.12. Transformación de datos de Silver a Gold
 
 Esta fase toma los datos ya limpios y transformados de la capa *Silver* y los materializa en la capa *Gold* como tablas Delta analíticas organizadas en un modelo dimensional. Cada notebook sigue el mismo patrón: crear la vista temporal con la lógica de negocio, crear la tabla destino si no existe, y ejecutar el `DELETE` + `INSERT` o el ciclo de periodos según el tipo de carga.
 
-#### Dimensiones "Carga full"
+#### 2.4.12.1. Dimensiones "Carga full"
 
 Las tres dimensiones se reemplazan completas en cada ejecución porque son catálogos maestros que no tienen historial por periodo.
 
@@ -570,7 +651,7 @@ Las tres dimensiones se reemplazan completas en cada ejecución porque son catá
 
 * *dim_canal* : construye `tvw_dim_canal` desde `silver.cleaned.tb_sucursales_red`. Clasifica cada punto de atención en su canal digital (APP MOVIL, PORTAL WEB, CORRESPONSAL BANCARIO). `DELETE` + `INSERT` completo.
 
-#### Tablas de hechos "Carga incremental por periodo"
+#### 2.4.12.2. Tablas de hechos "Carga incremental por periodo"
 
 Las tres facts manejan dos modos controlados por `widgets` de Databricks: `automatico` procesa solo el periodo del mes en curso, e `historico` itera sobre un rango de periodos definido por `periodo_inicial` y `periodo_final`.
 
@@ -582,7 +663,7 @@ En ambos modos el patrón es crear la vista temporal con la lógica, hacer `DELE
 
 * *fact_rentabilidad_cliente* fuentes: `silver.cleaned.tb_mov_financieros` y `silver.cleaned.tb_comisiones_log`. Agrega intereses y comisiones por cliente y periodo con un `FULL OUTER JOIN`para no perder registros que existan en solo una de las dos fuentes. Calcula el `INGRESO_TOTAL` y el `CLTV_12M` como la suma acumulada de los últimos 12 periodos usando una ventana `ROWS BETWEEN 11 PRECEDING AND CURRENT ROW`.
 
-## FASE 4 — ORQUESTACION DEL PIPELINE
+## 2.5. FASE 4 — ORQUESTACION DEL PIPELINE
 
 <!-- ENTREGABLES FASE 4
 • Definición del DAG o pipeline principal en la carpeta /orchestration del repositorio
@@ -595,7 +676,7 @@ recibido
 • Acceso al dashboard o log de monitoreo con el historial de al menos dos
 ejecuciones-->
 
-#### Definición del DAG o pipeline principal
+#### 2.5.1. Definición del DAG o pipeline principal
 
 Para la Fase 4 de la prueba se pide una representación visual de un flujo de trabajo del DAG:
 
@@ -652,7 +733,7 @@ ejecuciones
 
 ![hist_runs](.imgs/_fase_4/historial_runs.png)
 
-## FASE 5 — GOBIERNO, SEGURIDAD Y CALIDAD
+## 2.6. FASE 5 — GOBIERNO, SEGURIDAD Y CALIDAD
 
 
 <!-- ENTREGABLES FASE 5
@@ -672,7 +753,7 @@ Para la fase 5 se definen e implementan al menos tres roles diferenciados: Ingen
 
 ![groups](.imgs/_fase_5/groups.png)
 
-Demostración del acceso denegado
+Demostración del acceso por rol.
 
 ![groups](.imgs/_fase_5/tabla_groups.png)
 
