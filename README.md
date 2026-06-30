@@ -11,8 +11,8 @@
 **Autor:** Andres Mauricio Barrero Velásquez  
 **Correo:** andresvlasquez@gmail.com 
 **Fecha:** 29/06/2026  
-**Github de este repositorio** https://github.com/ambarrerov/ChallengeDataKnow
-**Linkeln** https://www.linkedin.com/in/andres-barrero-8621b5158/
+**Github de este repositorio** https://github.com/ambarrerov/ChallengeDataKnow. 
+**Linkeln** https://www.linkedin.com/in/andres-barrero-8621b5158/. 
 
 **AZURE DP-900, AZURE AZ-900**
 
